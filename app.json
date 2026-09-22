@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wortblick.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,16 +17,33 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.wortblick.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "server"
     },
     "plugins": [
       "expo-router",
       "expo-status-bar",
-      "expo-font"
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "WortBlick uses the camera to read German text on products and signs.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "WortBlick opens your photos so you can learn German words from them.",
+          "cameraPermission": "WortBlick uses the camera to read German text on products and signs.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "wortblick",
     "experiments": {

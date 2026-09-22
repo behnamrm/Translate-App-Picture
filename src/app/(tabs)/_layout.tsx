@@ -1,7 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router/tabs';
+import { Pressable } from 'react-native';
 
-import { colors } from '@/constants/theme';
+import { colors, spacing } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+
+function SignOutButton() {
+  return (
+    <Pressable
+      accessibilityLabel="Sign out"
+      onPress={() => supabase?.auth.signOut()}
+      style={{ paddingHorizontal: spacing.md }}
+    >
+      <Ionicons name="log-out-outline" size={24} color={colors.textMuted} />
+    </Pressable>
+  );
+}
 
 export default function TabsLayout() {
   return (
@@ -9,6 +23,7 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+        headerRight: () => <SignOutButton />,
       }}
     >
       <Tabs.Screen
