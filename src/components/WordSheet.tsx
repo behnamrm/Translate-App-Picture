@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { Button } from './Button';
 type Tab = 'persian' | 'german';
 type SaveState = 'idle' | 'saving' | 'saved' | 'duplicate' | 'error';
 
+/** Render with `key` set to the word so the save state resets for each word. */
 interface Props {
   word: AnalyzedWord | null;
   onClose: () => void;
@@ -24,11 +25,6 @@ export function WordSheet({ word, onClose, getContextImage }: Props) {
   const [tab, setTab] = useState<Tab>('persian');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
-
-  useEffect(() => {
-    setSaveState('idle');
-    setErrorMessage('');
-  }, [word]);
 
   const save = async () => {
     if (!word) return;

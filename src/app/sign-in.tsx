@@ -1,115 +1,74 @@
-import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { colors, radius, spacing } from '@/constants/theme';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-
-type Mode = 'sign-in' | 'sign-up';
+import { useAuth } from '@/lib/auth';
+import { isGoogleConfigured, preloadGoogleSignIn } from '@/lib/google/auth';
 
 export default function SignInScreen() {
-  const [mode, setMode] = useState<Mode>('sign-in');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { signIn, lastUser } = useAuth();
+  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = async () => {
-    if (!supabase) return;
+  useEffect(() => {
+    if (!isGoogleConfigured) return;
+    preloadGoogleSignIn()
+      .then(() => setReady(true))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load Google Sign-In.'));
+  }, []);
+
+  const handleSignIn = async () => {
     setBusy(true);
-    setMessage(null);
-    const credentials = { email: email.trim(), password };
-    const { data, error } =
-      mode === 'sign-in'
-        ? await supabase.auth.signInWithPassword(credentials)
-        : await supabase.auth.signUp(credentials);
-    setBusy(false);
-
-    if (error) {
-      setMessage({ text: error.message, error: true });
-    } else if (mode === 'sign-up' && !data.session) {
-      setMessage({ text: 'Check your email to confirm your account, then sign in.', error: false });
-      setMode('sign-in');
+    setError(null);
+    try {
+      await signIn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed.');
+    } finally {
+      setBusy(false);
     }
-    // On success the auth listener switches to the app automatically.
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.logo}>WortBlick</Text>
           <Text style={styles.tagline}>Learn German from the world around you.</Text>
         </View>
 
-        {!isSupabaseConfigured ? (
+        {!isGoogleConfigured ? (
           <View style={styles.notice}>
-            <Text style={styles.noticeTitle}>Supabase is not configured</Text>
+            <Text style={styles.noticeTitle}>Google Sign-In is not configured</Text>
             <Text style={styles.noticeText}>
-              Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY (see .env.example) and
-              restart or redeploy the app.
+              Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (see .env.example and the README), then restart
+              or redeploy the app.
             </Text>
           </View>
         ) : (
           <View style={styles.form}>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-              value={password}
-              onChangeText={setPassword}
-              onSubmitEditing={submit}
-            />
-            {message && (
-              <Text style={[styles.message, message.error && styles.messageError]}>
-                {message.text}
-              </Text>
-            )}
             <Button
-              title={mode === 'sign-in' ? 'Sign in' : 'Create account'}
-              onPress={submit}
+              title={lastUser ? `Continue as ${lastUser.email}` : 'Sign in with Google'}
+              icon="logo-google"
+              onPress={handleSignIn}
               loading={busy}
-              disabled={!email || password.length < 6}
+              disabled={!ready}
             />
-            <Pressable
-              onPress={() => {
-                setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
-                setMessage(null);
-              }}
-            >
-              <Text style={styles.switch}>
-                {mode === 'sign-in'
-                  ? "Don't have an account? Sign up"
-                  : 'Already have an account? Sign in'}
+            {error && <Text style={styles.error}>{error}</Text>}
+            <View style={styles.privacy}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} />
+              <Text style={styles.privacyText}>
+                Your flashcards are saved in a private app folder in your own Google Drive.
+                WortBlick cannot see your other Drive files.
               </Text>
-            </Pressable>
+            </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -143,27 +102,20 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.md,
   },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 2,
-    fontSize: 16,
-    color: colors.text,
-  },
-  message: {
-    color: colors.success,
+  error: {
+    color: colors.danger,
     fontSize: 14,
   },
-  messageError: {
-    color: colors.danger,
+  privacy: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
   },
-  switch: {
-    textAlign: 'center',
-    color: colors.primary,
-    fontSize: 15,
+  privacyText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   notice: {
     backgroundColor: colors.accentSoft,

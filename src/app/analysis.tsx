@@ -30,20 +30,30 @@ export default function ImageAnalysisScreen() {
   const [selected, setSelected] = useState<AnalyzedWord | null>(null);
   const uploadRef = useRef<Promise<string | null> | null>(null);
 
-  const run = useCallback(async () => {
-    if (!scan) return;
-    setState({ status: 'loading' });
-    try {
-      const words = await analyzeImage(scan.base64, scan.level);
-      setState({ status: 'done', words });
-    } catch (e) {
-      setState({ status: 'error', message: e instanceof Error ? e.message : 'Analysis failed.' });
-    }
-  }, [scan]);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    run();
-  }, [run]);
+    if (!scan) return;
+    let active = true;
+    analyzeImage(scan.base64, scan.level)
+      .then((words) => active && setState({ status: 'done', words }))
+      .catch(
+        (e) =>
+          active &&
+          setState({
+            status: 'error',
+            message: e instanceof Error ? e.message : 'Analysis failed.',
+          }),
+      );
+    return () => {
+      active = false;
+    };
+  }, [scan, attempt]);
+
+  const retry = () => {
+    setState({ status: 'loading' });
+    setAttempt((n) => n + 1);
+  };
 
   // Upload the photo at most once per scan, the first time a word is saved.
   // A failed upload is not fatal: the card is saved without an image.
@@ -86,7 +96,7 @@ export default function ImageAnalysisScreen() {
           <View style={styles.loading}>
             <Ionicons name="alert-circle-outline" size={32} color={colors.danger} />
             <Text style={styles.error}>{state.message}</Text>
-            <Button title="Try again" icon="refresh" onPress={run} />
+            <Button title="Try again" icon="refresh" onPress={retry} />
           </View>
         )}
 
@@ -117,6 +127,7 @@ export default function ImageAnalysisScreen() {
       </ScrollView>
 
       <WordSheet
+        key={selected ? selected.word : 'closed'}
         word={selected}
         onClose={() => setSelected(null)}
         getContextImage={getContextImage}

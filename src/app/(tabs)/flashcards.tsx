@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -8,7 +8,7 @@ import { colors, radius, spacing } from '@/constants/theme';
 import {
   fetchBoxCounts,
   fetchDueFlashcards,
-  signContextImages,
+  getContextImage,
   submitReview,
 } from '@/lib/flashcards';
 import { BOX_INTERVAL_DAYS, MAX_BOX } from '@/lib/leitner';
@@ -17,12 +17,7 @@ import type { Flashcard } from '@/types';
 type State =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | {
-      status: 'ready';
-      queue: Flashcard[];
-      images: Record<string, string>;
-      counts: Record<number, number>;
-    };
+  | { status: 'ready'; queue: Flashcard[]; counts: Record<number, number> };
 
 export default function FlashcardsScreen() {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -36,9 +31,7 @@ export default function FlashcardsScreen() {
     setReviewedCount(0);
     try {
       const [queue, counts] = await Promise.all([fetchDueFlashcards(), fetchBoxCounts()]);
-      const paths = queue.map((c) => c.context_image_url).filter((p): p is string => Boolean(p));
-      const images = await signContextImages(paths).catch(() => ({}));
-      setState({ status: 'ready', queue, images, counts });
+      setState({ status: 'ready', queue, counts });
     } catch (e) {
       setState({
         status: 'error',
@@ -94,7 +87,6 @@ export default function FlashcardsScreen() {
 
   const card = state.queue[0];
   const nextBox = card ? Math.min(card.leitner_box + 1, MAX_BOX) : 1;
-  const imageUrl = card?.context_image_url ? state.images[card.context_image_url] : undefined;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -120,8 +112,8 @@ export default function FlashcardsScreen() {
           </Text>
 
           <View style={styles.card}>
-            {imageUrl && (
-              <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
+            {card.context_image_url && (
+              <ContextImage key={card.id} fileId={card.context_image_url} />
             )}
             <Text style={styles.cardWord}>{card.german_word}</Text>
 
@@ -164,6 +156,29 @@ export default function FlashcardsScreen() {
         </>
       )}
     </ScrollView>
+  );
+}
+
+/** Render with `key` per card so the previous card's image is never shown. */
+function ContextImage({ fileId }: { fileId: string }) {
+  const [uri, setUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getContextImage(fileId)
+      .then((dataUri) => active && setUri(dataUri))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [fileId]);
+
+  return uri ? (
+    <Image source={{ uri }} style={styles.cardImage} resizeMode="cover" />
+  ) : (
+    <View style={[styles.cardImage, styles.centeredImage]}>
+      <ActivityIndicator color={colors.textMuted} />
+    </View>
   );
 }
 
@@ -240,6 +255,10 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: radius.md,
     backgroundColor: colors.border,
+  },
+  centeredImage: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardWord: {
     fontSize: 32,

@@ -1,8 +1,10 @@
 import { CEFR_LEVELS, type AnalyzedWord, type CefrLevel } from '@/types';
 
 // Runs on the server (Expo dev server locally, a Vercel function in production),
-// so the OpenAI key never reaches the client.
+// so the Gemini API key never reaches the client.
 
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const DEFAULT_MODEL = 'gemini-3.8-flash';
 const MAX_IMAGE_BASE64_LENGTH = 4_000_000; // ~3 MB JPEG
 
 const WORDS_SCHEMA = {
@@ -51,24 +53,38 @@ function error(status: number, message: string) {
   return Response.json({ error: message }, { status });
 }
 
-/** Verifies the caller's Supabase access token so only signed-in users can spend OpenAI credits. */
-async function isAuthorized(request: Request): Promise<boolean> {
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) return false;
+/** Client IDs whose Google access tokens may call this route. */
+function allowedClientIds(): string[] {
+  return [
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    ...(process.env.GOOGLE_ALLOWED_CLIENT_IDS ?? '').split(','),
+  ]
+    .map((id) => id?.trim())
+    .filter((id): id is string => Boolean(id));
+}
 
+/**
+ * Verifies the caller's Google access token and that it was issued to this app,
+ * so only signed-in users of WortBlick can spend the Gemini quota.
+ */
+async function isAuthorized(request: Request): Promise<boolean> {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return false;
+  const token = authorization.slice('Bearer '.length);
 
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { apikey: anonKey, Authorization: authorization },
-  });
-  return response.ok;
+  const response = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`,
+  );
+  if (!response.ok) return false;
+  const info = (await response.json()) as { aud?: string; azp?: string };
+  const clientIds = allowedClientIds();
+  return clientIds.some((id) => id === info.aud || id === info.azp);
 }
 
 export async function POST(request: Request) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return error(500, 'OPENAI_API_KEY is not set on the server.');
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return error(500, 'GEMINI_API_KEY is not set on the server.');
 
   if (!(await isAuthorized(request))) return error(401, 'Please sign in to analyze images.');
 
@@ -86,47 +102,49 @@ export async function POST(request: Request) {
     return error(400, `level must be one of ${CEFR_LEVELS.join(', ')}.`);
   }
 
-  const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+  const geminiResponse = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
-      temperature: 0.2,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'german_words', strict: true, schema: WORDS_SCHEMA },
-      },
-      messages: [
-        { role: 'system', content: systemPrompt(level as CefrLevel) },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: `Target level: ${level}` },
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: 'high' },
-            },
-          ],
-        },
+      model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+      store: false,
+      system_instruction: systemPrompt(level as CefrLevel),
+      input: [
+        { type: 'text', text: `Target level: ${level}` },
+        { type: 'image', data: imageBase64, mime_type: 'image/jpeg' },
       ],
+      response_format: { type: 'text', mime_type: 'application/json', schema: WORDS_SCHEMA },
+      generation_config: { thinking_level: 'low' },
     }),
   });
 
-  if (!openaiResponse.ok) {
-    const detail = await openaiResponse.text();
-    console.error('OpenAI error', openaiResponse.status, detail);
+  if (!geminiResponse.ok) {
+    const detail = await geminiResponse.text();
+    console.error('Gemini error', geminiResponse.status, detail);
+    if (geminiResponse.status === 429) {
+      return error(
+        429,
+        'Too many scans right now (free AI quota reached). Please try again later.',
+      );
+    }
     return error(502, 'The AI service could not analyze this image. Please try again.');
   }
 
-  const completion = await openaiResponse.json();
-  const message = completion.choices?.[0]?.message;
-  if (message?.refusal) return error(422, message.refusal);
+  const interaction = (await geminiResponse.json()) as {
+    steps?: { type: string; content?: { type: string; text?: string }[] }[];
+  };
+  const text = (interaction.steps ?? [])
+    .filter((step) => step.type === 'model_output')
+    .flatMap((step) => step.content ?? [])
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text ?? '')
+    .join('');
 
   try {
-    const parsed = JSON.parse(message?.content ?? '{}') as { words?: AnalyzedWord[] };
+    const parsed = JSON.parse(text || '{}') as { words?: AnalyzedWord[] };
     return Response.json({ words: parsed.words ?? [] });
   } catch {
     return error(502, 'The AI returned an unexpected response.');

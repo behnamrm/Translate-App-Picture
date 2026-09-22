@@ -1,12 +1,10 @@
 import type { AnalyzedWord, CefrLevel } from '@/types';
 
 import { apiUrl } from './api';
-import { requireSupabase } from './supabase';
+import { getAccessToken } from './session';
 
 export async function analyzeImage(imageBase64: string, level: CefrLevel): Promise<AnalyzedWord[]> {
-  const { data } = await requireSupabase().auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error('Please sign in again.');
+  const token = await getAccessToken();
 
   const response = await fetch(apiUrl('/api/analyze'), {
     method: 'POST',

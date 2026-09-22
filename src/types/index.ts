@@ -9,14 +9,17 @@ export interface AnalyzedWord {
   simple_german: string;
 }
 
-/** A row of the `flashcards` table in Supabase. */
+/** A flashcard, stored in flashcards.json in the user's Google Drive app folder. */
 export interface Flashcard {
   id: string;
-  user_id: string;
   german_word: string;
+  /** Google Drive file id of the scanned photo, if it was saved. */
   context_image_url: string | null;
   persian_translation: string;
   german_explanation: string;
-  leitner_box: 1 | 2 | 3 | 4 | 5;
+  /** Leitner box, 1–5. */
+  leitner_box: number;
+  /** ISO timestamp. */
   next_review_date: string;
+  created_at: string;
 }

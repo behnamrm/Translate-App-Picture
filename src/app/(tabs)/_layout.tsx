@@ -3,13 +3,14 @@ import { Tabs } from 'expo-router/tabs';
 import { Pressable } from 'react-native';
 
 import { colors, spacing } from '@/constants/theme';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 
 function SignOutButton() {
+  const { signOut } = useAuth();
   return (
     <Pressable
       accessibilityLabel="Sign out"
-      onPress={() => supabase?.auth.signOut()}
+      onPress={signOut}
       style={{ paddingHorizontal: spacing.md }}
     >
       <Ionicons name="log-out-outline" size={24} color={colors.textMuted} />
