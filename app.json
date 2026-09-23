@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "WortBlick",
+    "slug": "wortblick",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.wortblick.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.wortblick.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "server"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "WortBlick uses the camera to read German text on products and signs.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "WortBlick opens your photos so you can learn German words from them.",
+          "cameraPermission": "WortBlick uses the camera to read German text on products and signs.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "scheme": "wortblick",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
