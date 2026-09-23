@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,6 +69,15 @@ export default function SignInScreen() {
             </View>
           </View>
         )}
+
+        <View style={styles.legal}>
+          <Link href="/privacy" style={styles.legalLink}>
+            Privacy Policy
+          </Link>
+          <Link href="/terms" style={styles.legalLink}>
+            Terms of Service
+          </Link>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -116,6 +126,16 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  legal: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  legalLink: {
+    color: colors.textMuted,
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
   notice: {
     backgroundColor: colors.accentSoft,

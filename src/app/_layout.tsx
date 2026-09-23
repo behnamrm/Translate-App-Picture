@@ -1,14 +1,17 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { PUBLIC_ROUTES } from '@/constants/app';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth';
 
 function RootStack() {
   const { session, loading } = useAuth();
+  const pathname = usePathname();
 
-  if (loading) {
+  // Public pages render right away (and in the prerendered HTML) without waiting for auth.
+  if (loading && !PUBLIC_ROUTES.includes(pathname)) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={colors.primary} />
@@ -34,6 +37,8 @@ function RootStack() {
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       </Stack.Protected>
+      <Stack.Screen name="privacy" options={{ title: 'Privacy Policy' }} />
+      <Stack.Screen name="terms" options={{ title: 'Terms of Service' }} />
     </Stack>
   );
 }
